@@ -1,4 +1,4 @@
-package storage
+package local
 
 import (
 	"context"
@@ -6,14 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"video-converter/internal/job"
+	"video-converter/internal/storage"
 )
-
-type OutputStorage interface {
-	Put(ctx context.Context, jobID string, format job.Format) (io.WriteCloser, string, error)
-}
 
 type LocalOutputStorage struct {
 	BaseDir string
+}
+
+func NewLocalOutputStorage(baseDir string) storage.OutputStorage {
+	return &LocalOutputStorage{BaseDir: baseDir}
 }
 
 func (s *LocalOutputStorage) Put(_ context.Context, jobID string, format job.Format) (io.WriteCloser, string, error) {

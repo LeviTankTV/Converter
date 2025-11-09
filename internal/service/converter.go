@@ -1,24 +1,25 @@
-// internal/service/service.go
 package service
 
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"video-converter/internal/converter"
 	"video-converter/internal/job"
 	"video-converter/internal/storage"
 )
+
+type Converter interface {
+	ProcessJob(ctx context.Context, fileID string, format job.Format) (string, error)
+}
 
 type VideoService struct {
 	inputStorage  storage.InputStorage
 	outputStorage storage.OutputStorage
 }
 
-func NewVideoService(input storage.InputStorage, output storage.OutputStorage) *VideoService {
+func NewVideoService(input storage.InputStorage, output storage.OutputStorage) Converter {
 	return &VideoService{
 		inputStorage:  input,
 		outputStorage: output,
@@ -45,8 +46,6 @@ func (s *VideoService) ProcessJob(ctx context.Context, fileID string, format job
 	defer output.Close()
 
 	if err := converter.Convert(ctx, input, output, format); err != nil {
-		// Очистка при ошибке (для локального режима)
-		os.Remove(filepath.Join("outputs", resultName))
 		return "", err
 	}
 
@@ -55,7 +54,7 @@ func (s *VideoService) ProcessJob(ctx context.Context, fileID string, format job
 
 func (s *VideoService) processGIF(ctx context.Context, jobID string, fileID string) (string, error) {
 	// 1. Скачиваем исходник во временный файл
-	tmpInput, err := ioutil.TempFile("", "input-*.tmp")
+	tmpInput, err := os.CreateTemp("", "input-*.tmp")
 	if err != nil {
 		return "", err
 	}
@@ -71,9 +70,10 @@ func (s *VideoService) processGIF(ctx context.Context, jobID string, fileID stri
 		return "", err
 	}
 	src.Close()
+	tmpInput.Seek(0, io.SeekStart)
 
 	// 2. Генерация палитры
-	paletteFile, err := ioutil.TempFile("", "palette-*.png")
+	paletteFile, err := os.CreateTemp("", "palette-*.png")
 	if err != nil {
 		return "", err
 	}
@@ -87,7 +87,7 @@ func (s *VideoService) processGIF(ctx context.Context, jobID string, fileID stri
 	}
 
 	// 3. Конвертация с палитрой
-	tmpOutput, err := ioutil.TempFile("", "output-*.gif")
+	tmpOutput, err := os.CreateTemp("", "output-*.gif")
 	if err != nil {
 		return "", err
 	}
@@ -114,7 +114,6 @@ func (s *VideoService) processGIF(ctx context.Context, jobID string, fileID stri
 	defer tmpResult.Close()
 
 	if _, err := io.Copy(output, tmpResult); err != nil {
-		os.Remove(filepath.Join("outputs", resultName))
 		return "", err
 	}
 

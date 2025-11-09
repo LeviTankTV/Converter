@@ -13,7 +13,7 @@ func Convert(ctx context.Context, input io.Reader, output io.Writer, format job.
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	cmd.Stdin = input
 	cmd.Stdout = output
-	// cmd.Stderr = os.Stderr // раскомментируй для отладки
+	// cmd.Stderr = os.Stderr // для отладки
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ffmpeg failed: %w", err)
@@ -49,11 +49,6 @@ func buildFFmpegArgs(format job.Format) []string {
 			"-c:a", "libopus",
 			"-b:a", "128k",
 		)
-	case job.GIF:
-		// Для GIF нужна палитра → требует файл. Обход: временно сохраняем.
-		// В этом примере GIF обрабатывается через файл (см. CLI).
-		// Альтернатива — использовать filter_complex с палитрой в памяти (сложно).
-		panic("GIF requires file-based processing — handle in CLI")
 	case job.MP3:
 		return append(base,
 			"-vn",
@@ -73,6 +68,7 @@ func buildFFmpegArgs(format job.Format) []string {
 			"-b:a", "128k",
 		)
 	default:
+		// GIF обрабатывается отдельно в сервисе
 		panic("unsupported format: " + string(format))
 	}
 }
@@ -83,8 +79,6 @@ func formatToContainer(f job.Format) string {
 		return "mp4"
 	case job.WEBM:
 		return "webm"
-	case job.GIF:
-		return "gif"
 	case job.MP3:
 		return "mp3"
 	case job.OGG:
